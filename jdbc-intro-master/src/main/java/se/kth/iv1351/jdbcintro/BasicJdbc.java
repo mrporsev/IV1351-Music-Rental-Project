@@ -46,6 +46,7 @@ public class BasicJdbc {
 
   private void accessDB() {
     try (Connection connection = createConnection()) {
+      connection.setAutoCommit(false);
       createTable(connection);
       prepareStatements(connection);
       Scanner scanner = new Scanner(System.in);
@@ -74,7 +75,8 @@ public class BasicJdbc {
             insertRentalStmt.setString(2, "2020-01-01");
             insertRentalStmt.setString(3, "2021-01-01");
             insertRentalStmt.setInt(4, instrument_id);
-            rentInstrument();
+            rentInstrument(connection);
+            System.out.println("You have now rented an instrument!");
             break;
         case 3:
           System.out.println("What is your student id?");
@@ -86,7 +88,7 @@ public class BasicJdbc {
 
           terminateRentalStmt.setInt(1,student_idTerminate);
           terminateRentalStmt.setInt(2, rental_idTerminate);
-          terminateInstrument();
+          terminateInstrument(connection);
           break;
       }
     } catch (SQLException | ClassNotFoundException exc) {
@@ -137,7 +139,7 @@ public class BasicJdbc {
     }
   }
 
-  private void rentInstrument() {
+  private void rentInstrument(Connection connection) throws SQLException {
     boolean statement = true;
     try (ResultSet instruments_rented = numberRentedInstrumentsStmt.executeQuery()) {
       while(instruments_rented.next() && statement) {
@@ -145,6 +147,7 @@ public class BasicJdbc {
         if (instruments_rented.getInt(2) <= 1) {
           //System.out.println("INNUTI IF:EN");
           insertRentalStmt.executeUpdate();
+          connection.commit();
           statement = false;
         } else {
           System.out.println("Can't rent, student has reached maximum rental already.");
@@ -153,9 +156,11 @@ public class BasicJdbc {
       }
       if(statement) {
         insertRentalStmt.executeUpdate();
+        connection.commit();
       }
     } catch (SQLException e) {
       e.printStackTrace();
+      connection.rollback();
     }
   }
 
@@ -163,9 +168,15 @@ public class BasicJdbc {
    * Will set rental_end_date as NULL (terminated) for the specified rental_id
    * @throws SQLException sql exception
    */
-  private void terminateInstrument() throws SQLException {
-    terminateRentalStmt.executeUpdate();
-    System.out.println("Specific rental terminated");
+  private void terminateInstrument(Connection connection) throws SQLException {
+    try {
+      terminateRentalStmt.executeUpdate();
+      connection.commit();
+      System.out.println("Specific rental terminated");
+    } catch(SQLException e) {
+      e.printStackTrace();
+      connection.rollback();
+    }
   }
 
   private void prepareStatements(Connection connection) throws SQLException {
